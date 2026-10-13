@@ -17,6 +17,6 @@ jobs:
           python -m pip install 'torch>=2.6,<2.7' --index-url https://download.pytorch.org/whl/cpu
           python -m pip install -r requirements/test.txt
       - name: Run algorithm and release contracts
-        run: python -m pytest tests/irgo -q
+        run: python -m pytest tests/irgo tests/experiments -q
       - name: Check Python syntax
-        run: python -m compileall -q recipe/GraphGPO scripts/irgo verl agent_system
+        run: python -m compileall -q recipe/GraphGPO scripts/irgo scripts/experiments verl agent_system

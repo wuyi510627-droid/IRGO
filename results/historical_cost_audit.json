@@ -1,0 +1,200 @@
+{
+  "schema": "irgo-historical-audit-v1",
+  "rounds": 150,
+  "observed_task_groups": 2400,
+  "observed_natural_trajectories": 19200,
+  "unique_structural_training_tasks": 2017,
+  "unique_observed_instruction_texts": 2213,
+  "totals": {
+    "environment/u_total_physical_calls": 323032,
+    "environment/u_natural_physical_calls": 283648,
+    "u/extra_physical_env_calls": 39384,
+    "u/probes": 4800,
+    "u/extra_prefix_steps": 8499,
+    "u/natural_generated_tokens": 19603845,
+    "u/extra_generated_tokens": 3719246,
+    "u/query_generated_tokens": 158154,
+    "u/extra_seconds": 64784.007500410895,
+    "timing_s/step": 174524.30533208605,
+    "aux/tasks": 33,
+    "tasks/initial_all_failed_count": 495
+  },
+  "mean_per_round": {
+    "environment/u_total_physical_calls": 2153.5466666666666,
+    "environment/u_natural_physical_calls": 1890.9866666666667,
+    "u/extra_physical_env_calls": 262.56,
+    "u/probes": 32.0,
+    "u/extra_prefix_steps": 56.66,
+    "u/natural_generated_tokens": 130692.3,
+    "u/extra_generated_tokens": 24794.97333333333,
+    "u/query_generated_tokens": 1054.36,
+    "u/extra_seconds": 431.89338333607265,
+    "timing_s/step": 1163.4953688805736,
+    "aux/tasks": 0.22,
+    "tasks/initial_all_failed_count": 3.3
+  },
+  "generation_input_token_cost": "not recorded historically; unavailable",
+  "extra_generated_tokens_include_queries": true,
+  "validation_identity_evidence": "Reconstructed from archived seed/reset rules; not observed validation traces. Structural identity ignores seed-dependent price.",
+  "validation": [
+    {
+      "stage": 0,
+      "episodes": 128,
+      "structural_overlap": 0
+    },
+    {
+      "stage": 5,
+      "episodes": 128,
+      "structural_overlap": 3
+    },
+    {
+      "stage": 10,
+      "episodes": 128,
+      "structural_overlap": 2
+    },
+    {
+      "stage": 15,
+      "episodes": 128,
+      "structural_overlap": 5
+    },
+    {
+      "stage": 20,
+      "episodes": 128,
+      "structural_overlap": 7
+    },
+    {
+      "stage": 25,
+      "episodes": 128,
+      "structural_overlap": 8
+    },
+    {
+      "stage": 30,
+      "episodes": 128,
+      "structural_overlap": 9
+    },
+    {
+      "stage": 35,
+      "episodes": 128,
+      "structural_overlap": 10
+    },
+    {
+      "stage": 40,
+      "episodes": 128,
+      "structural_overlap": 8
+    },
+    {
+      "stage": 45,
+      "episodes": 128,
+      "structural_overlap": 16
+    },
+    {
+      "stage": 50,
+      "episodes": 128,
+      "structural_overlap": 13
+    },
+    {
+      "stage": 55,
+      "episodes": 128,
+      "structural_overlap": 17
+    },
+    {
+      "stage": 60,
+      "episodes": 128,
+      "structural_overlap": 14
+    },
+    {
+      "stage": 65,
+      "episodes": 128,
+      "structural_overlap": 27
+    },
+    {
+      "stage": 70,
+      "episodes": 128,
+      "structural_overlap": 19
+    },
+    {
+      "stage": 75,
+      "episodes": 128,
+      "structural_overlap": 24
+    },
+    {
+      "stage": 80,
+      "episodes": 128,
+      "structural_overlap": 23
+    },
+    {
+      "stage": 85,
+      "episodes": 128,
+      "structural_overlap": 21
+    },
+    {
+      "stage": 90,
+      "episodes": 128,
+      "structural_overlap": 21
+    },
+    {
+      "stage": 95,
+      "episodes": 128,
+      "structural_overlap": 25
+    },
+    {
+      "stage": 100,
+      "episodes": 128,
+      "structural_overlap": 28
+    },
+    {
+      "stage": 105,
+      "episodes": 128,
+      "structural_overlap": 26
+    },
+    {
+      "stage": 110,
+      "episodes": 128,
+      "structural_overlap": 30
+    },
+    {
+      "stage": 115,
+      "episodes": 128,
+      "structural_overlap": 31
+    },
+    {
+      "stage": 120,
+      "episodes": 128,
+      "structural_overlap": 35
+    },
+    {
+      "stage": 125,
+      "episodes": 128,
+      "structural_overlap": 35
+    },
+    {
+      "stage": 130,
+      "episodes": 128,
+      "structural_overlap": 36
+    },
+    {
+      "stage": 135,
+      "episodes": 128,
+      "structural_overlap": 41
+    },
+    {
+      "stage": 140,
+      "episodes": 128,
+      "structural_overlap": 38
+    },
+    {
+      "stage": 145,
+      "episodes": 128,
+      "structural_overlap": 27
+    },
+    {
+      "stage": 150,
+      "episodes": 128,
+      "structural_overlap": 35
+    }
+  ],
+  "input_sha256": {
+    "history": "cdd600be9b4e909b62ce0e674cc69b2f67b04307dbb6fb9a5b7e28fdc69d8d35",
+    "catalog": "7f02a5787b9eca2044103d3b8f870377540a540f09b1c152d25cfac955a38a6c"
+  }
+}

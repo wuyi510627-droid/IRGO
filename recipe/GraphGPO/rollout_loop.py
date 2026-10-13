@@ -339,6 +339,11 @@ class TrajectoryCollector:
             uid_batch = np.array([uid for _ in range(len(gen_batch.batch))], dtype=object)
         is_done = np.zeros(batch_size, dtype=bool)
         traj_uid = np.array([str(uuid.uuid4()) for _ in range(batch_size)], dtype=object)
+        # Paired control arms share task IDs and the first eight trajectory IDs.
+        # Branch priority hashes must not inherit random UUID scheduling noise.
+        if any('irgo_task_instance_id' in info for info in infos):
+            uid_batch = np.array([info['irgo_task_instance_id'] for info in infos], dtype=object)
+            traj_uid = np.array([info['irgo_trajectory_id'] for info in infos], dtype=object)
         total_batch_list = [[] for _ in range(batch_size)]
         total_infos = [[] for _ in range(batch_size)]
         episode_lengths = np.zeros(batch_size, dtype=np.float32)
@@ -372,6 +377,8 @@ class TrajectoryCollector:
 
             # pad to be divisible by dp_size
             batch_input_padded, pad_size = pad_dataproto_to_divisor(batch_input, actor_rollout_wg.world_size)
+            if getattr(self, 'u_meta', None) is not None and pad_size:
+                self.u_capture.generated_input_tokens += int(batch_input_padded.batch['attention_mask'][-pad_size:].sum().item())
             batch_output_padded = actor_rollout_wg.generate_sequences(batch_input_padded)
             # # unpad
             batch_output = unpad_dataproto(batch_output_padded, pad_size=pad_size)

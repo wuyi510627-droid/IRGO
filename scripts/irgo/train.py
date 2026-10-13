@@ -32,7 +32,9 @@ def main():
         required=True,
         help="Directory containing train.parquet and test.parquet.",
     )
-    parser.add_argument("--output", type=Path, required=True, help="A new experiment directory.")
+    parser.add_argument(
+        "--output", type=Path, required=True, help="A new experiment directory."
+    )
     parser.add_argument("--profile", choices=["full150", "smoke"], default="full150")
     parser.add_argument(
         "--allow-different-model",
@@ -41,6 +43,12 @@ def main():
     )
     parser.add_argument("--execute", action="store_true")
     args = parser.parse_args()
+    import os
+
+    if os.environ.get("IRGO_TASK_MANIFEST"):
+        raise ValueError(
+            "Use scripts/experiments/train_control.py for the new task protocol"
+        )
     cfg = training_config(args.model, args.data_dir, args.output, args.profile)
     print(
         json.dumps(
@@ -58,8 +66,15 @@ def main():
     )
     if not args.execute:
         return
+    launch(args, cfg)
+
+
+def launch(args, cfg, experiment=None):
+    """Validate assets and execute one new run; callers provide a frozen config."""
     if args.output.exists():
-        raise FileExistsError("Choose a new output directory; archived runs are never overwritten.")
+        raise FileExistsError(
+            "Choose a new output directory; archived runs are never overwritten."
+        )
     if not (args.model / "config.json").is_file():
         raise FileNotFoundError("Expected a local Hugging Face model directory")
     weight = args.model / "model.safetensors"
@@ -77,6 +92,10 @@ def main():
     ]:
         file = args.data_dir / f"{split}.parquet"
         rows[split] = parquet.read_metadata(file).num_rows
+        if experiment and rows[split] != batch:
+            raise ValueError(
+                "Frozen controls require exactly one metadata batch per split"
+            )
         if rows[split] < batch:
             raise ValueError(f"{file} has fewer rows than the configured batch")
     assets = verify_webshop()
@@ -89,8 +108,20 @@ def main():
 
     os.environ.setdefault("CUDA_VISIBLE_DEVICES", env["CUDA_VISIBLE_DEVICES"])
     if torch.cuda.device_count() != 2:
-        raise RuntimeError("This reference configuration requires two visible CUDA GPUs")
+        raise RuntimeError(
+            "This reference configuration requires two visible CUDA GPUs"
+        )
     args.output.mkdir(parents=True)
+    if experiment:
+        from recipe.GraphGPO.task_protocol import FixedTaskSchedule
+
+        schedule = FixedTaskSchedule(args.manifest, True, 16, args.seed)
+        if schedule.manifest_sha256 != experiment["manifest_sha256"]:
+            raise ValueError("Task manifest changed during preflight")
+        frozen = args.output.resolve() / "task_manifest.json"
+        frozen.write_text(json.dumps(schedule.manifest, ensure_ascii=False, indent=2))
+        cfg["ray_init"]["runtime_env"]["env_vars"]["IRGO_TASK_MANIFEST"] = str(frozen)
+        (args.output / "experiment.json").write_text(json.dumps(experiment, indent=2))
     (args.output / "config.yaml").write_text(yaml.safe_dump(cfg, sort_keys=False))
     (args.output / "launch.json").write_text(
         json.dumps(
@@ -120,7 +151,9 @@ def main():
         "config",
     ]
     with (args.output / "train.log").open("w") as log:
-        result = subprocess.run(command, cwd=REPO, env=env, stdout=log, stderr=subprocess.STDOUT)
+        result = subprocess.run(
+            command, cwd=REPO, env=env, stdout=log, stderr=subprocess.STDOUT
+        )
     (args.output / "exitcode").write_text(str(result.returncode) + "\n")
     raise SystemExit(result.returncode)
 

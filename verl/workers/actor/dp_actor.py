@@ -343,6 +343,8 @@ class DataParallelPPOActor(BasePPOActor):
             dataloader = batch.split(self.config.ppo_mini_batch_size)
 
         metrics = {}
+        optimizer_attempts = 0
+        optimizer_completed = 0
         for epoch in range(self.config.ppo_epochs):
             for batch_idx, data in enumerate(dataloader):
                 # split batch into micro_batches
@@ -450,9 +452,13 @@ class DataParallelPPOActor(BasePPOActor):
                     for key,values in extra.items():metrics.setdefault(key,[]).extend(values)
                     auxiliary_update_index+=1
                 grad_norm = self._optimizer_step()
+                optimizer_attempts += 1
+                optimizer_completed += int(torch.isfinite(grad_norm).item())
                 data = {"actor/grad_norm": grad_norm.detach().item()}
                 append_to_dict(metrics, data)
         self.actor_optimizer.zero_grad()
+        metrics['actor/optimizer_step_attempts'] = [float(optimizer_attempts)]
+        metrics['actor/optimizer_steps_completed'] = [float(optimizer_completed)]
         if auxiliary_payload:
             assert auxiliary_update_index==len(auxiliary_payload['by_update'])
             metrics['aux/completed_optimizer_steps']=[float(auxiliary_update_index)]
