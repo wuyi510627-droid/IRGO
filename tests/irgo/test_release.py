@@ -65,7 +65,14 @@ def test_full_training_config_retains_scientific_settings(tmp_path):
     u = cfg["algorithm"]["u"]
     assert (u["max_probes"], u["max_probes_per_task"], u["max_extra_env_calls"]) == (32, 4, 480)
     assert u["credit_state_mode"] == "page" and u["auxiliary_coefficient"] == 0.1
-    assert "/mnt/data/" not in json.dumps(cfg) and "/home/" not in json.dumps(cfg)
+    # A valid Linux checkout can live under /home/runner. Check the relocated
+    # fields themselves instead of rejecting a platform's entire home prefix.
+    assert cfg["data"]["train_files"] == str(tmp_path / "data/train.parquet")
+    assert cfg["data"]["val_files"] == str(tmp_path / "data/test.parquet")
+    assert cfg["trainer"]["default_local_dir"] == str(tmp_path / "out/run")
+    assert cfg["trainer"]["validation_data_dir"] == str(tmp_path / "out/run/validation")
+    assert cfg["ray_init"]["runtime_env"]["env_vars"]["PYTHONPATH"] == str(ROOT)
+    assert "${oc.env:" not in json.dumps(cfg)
 
 
 def test_smoke_is_separate_and_keeps_auxiliary_path(tmp_path):
