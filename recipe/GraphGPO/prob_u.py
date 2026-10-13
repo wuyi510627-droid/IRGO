@@ -13,7 +13,12 @@ from pathlib import Path
 import time
 import numpy as np
 
-from .probabilistic_credit import build_posterior, policy_qva_values, canonical_state, scoped_state
+from .probabilistic_credit import (
+    build_posterior,
+    policy_qva_values,
+    canonical_state,
+    scoped_state,
+)
 
 
 def digest(value):
@@ -62,6 +67,7 @@ class UConfig:
     max_probes: int = 32
     max_probes_per_task: int = 4
     max_extra_env_calls: int = 480
+    site_selection: str = "heuristic"
     auxiliary_enabled: bool = True
     auxiliary_coefficient: float = 0.1
     seed: int = 20260927
@@ -69,6 +75,8 @@ class UConfig:
     history_max_trajectories: int = 1280
 
     def __post_init__(self):
+        if self.site_selection not in ("heuristic", "random"):
+            raise ValueError("Unsupported site selection control")
         if not 0 <= self.auxiliary_coefficient <= 1:
             raise ValueError("Invalid auxiliary coefficient")
         if self.credit_state_mode not in ("page", "context"):
@@ -258,18 +266,26 @@ def gates(natural, evidence, graph_q, policy, cfg, stage):
                     else (
                         float(np.mean(adraw[:, i] < -cfg.practical_epsilon))
                         if adv[i] < -cfg.practical_epsilon
-                        else float(np.mean(np.abs(adraw[:, i]) <= cfg.practical_epsilon))
+                        else float(
+                            np.mean(np.abs(adraw[:, i]) <= cfg.practical_epsilon)
+                        )
                     )
                 )
                 for i in range(len(actions))
             ]
             entry.update(
-                confidence=min(signs), point_q=point.tolist(), point_advantage=adv.tolist()
+                confidence=min(signs),
+                point_q=point.tolist(),
+                point_advantage=adv.tolist(),
             )
             entry["reason"] = (
                 "low_coverage"
                 if min(entry["counts"].values()) < cfg.min_count
-                else "uncertain_advantage" if min(signs) < cfg.sign_threshold else "stable_proxy"
+                else (
+                    "uncertain_advantage"
+                    if min(signs) < cfg.sign_threshold
+                    else "stable_proxy"
+                )
             )
             entry["trigger"] = entry["reason"] != "stable_proxy"
         result.append(entry)
@@ -290,7 +306,8 @@ def history_shadow(natural, past, horizon):
     if len(ids) != len(set(ids)):
         raise ValueError("Duplicate history/current trajectory identity")
     if past and any(
-        t["stage"] >= min(n["stage"] for n in natural) or t["source"] != "natural" for t in past
+        t["stage"] >= min(n["stage"] for n in natural) or t["source"] != "natural"
+        for t in past
     ):
         raise ValueError("History must contain older natural trajectories")
     old = outcomes(past, horizon)
@@ -321,7 +338,9 @@ def history_shadow(natural, past, horizon):
                 history_brier=(p1 - y) ** 2,
                 gain=(p0 - y) ** 2 - (p1 - y) ** 2,
                 historical_ids=sorted({r["trajectory_id"] for r in h}),
-                stale_policy_count=sum(r["policy_version"] != target["policy_version"] for r in h),
+                stale_policy_count=sum(
+                    r["policy_version"] != target["policy_version"] for r in h
+                ),
             )
         )
     grouped = defaultdict(list)
@@ -351,7 +370,11 @@ def history_shadow(natural, past, horizon):
         },
         **cluster_metrics,
         **(
-            {"history/task_mean_brier_gain": float(np.mean([np.mean(v) for v in grouped.values()]))}
+            {
+                "history/task_mean_brier_gain": float(
+                    np.mean([np.mean(v) for v in grouped.values()])
+                )
+            }
             if grouped
             else {}
         ),
@@ -397,7 +420,9 @@ class UController:
         if any(t["stage"] != stage or t["source"] != "natural" for t in natural):
             raise ValueError("Stage/source mismatch")
         initial_start = time.perf_counter()
-        before, q, pi = estimate(natural, [], self.cfg.horizon, self.cfg.credit_state_mode)
+        before, q, pi = estimate(
+            natural, [], self.cfg.horizon, self.cfg.credit_state_mode
+        )
         pre, refs = gates(natural, natural, q, pi, self.cfg, stage)
         initial_seconds = time.perf_counter() - initial_start
         history_start = time.perf_counter()
@@ -447,6 +472,8 @@ class UController:
                     goal_id=ts[0]["goal_id"],
                     trajectories=len(ts),
                     successes=sum(t["success"] for t in ts),
+                    reference_trajectories=min(8, len(ts)),
+                    reference_successes=sum(t["success"] for t in ts[:8]),
                     partial_scores=[t["score"] for t in ts],
                     stop_reasons=[t["stop_reason"] for t in ts],
                     probes=by_task[task],
@@ -458,9 +485,17 @@ class UController:
                 "u/probes": len(probes),
                 "u/extra_effective_steps": sum(len(t["steps"]) for t in probes),
                 "u/extra_prefix_steps": sum(t["credit_start"] for t in probes),
-                "u/extra_generated_tokens": sum(t.get("generated_tokens", 0) for t in probes)
+                "u/extra_generated_tokens": sum(
+                    t.get("generated_tokens", 0) for t in probes
+                )
                 + query_metrics.get("u/query_generated_tokens", 0),
-                "u/extra_generated_requests": sum(t.get("generated_requests", 0) for t in probes)
+                "u/extra_input_tokens": sum(
+                    t.get("generated_input_tokens", 0) for t in probes
+                )
+                + query_metrics.get("u/query_input_tokens", 0),
+                "u/extra_generated_requests": sum(
+                    t.get("generated_requests", 0) for t in probes
+                )
                 + query_metrics.get("u/query_requests", 0),
                 "u/triggered_tasks": len(
                     {g["task_id"] for g in pre if g["reason"] != "stable_proxy"}
@@ -470,20 +505,38 @@ class UController:
                     {g["task_id"] for g in pre if g["reason"] != "stable_proxy"}
                 )
                 / len(tasks),
-                "u/served_task_ratio": sum(n > 0 for n in by_task.values()) / len(tasks),
-                "u/still_uncertain_states": sum(g["reason"] != "stable_proxy" for g in post),
-                "u/stable_proxy_states_after": sum(g["reason"] == "stable_proxy" for g in post),
+                "u/served_task_ratio": sum(n > 0 for n in by_task.values())
+                / len(tasks),
+                "u/still_uncertain_states": sum(
+                    g["reason"] != "stable_proxy" for g in post
+                ),
+                "u/stable_proxy_states_after": sum(
+                    g["reason"] == "stable_proxy" for g in post
+                ),
                 "u/na_states_after": sum(g["confidence"] is None for g in post),
                 "u/probes_per_task_mean": float(np.mean([t["probes"] for t in tasks])),
-                "u/probes_per_task_p90": float(np.quantile([t["probes"] for t in tasks], 0.9)),
+                "u/probes_per_task_p90": float(
+                    np.quantile([t["probes"] for t in tasks], 0.9)
+                ),
                 "u/probes_per_task_max": max(t["probes"] for t in tasks),
                 "u/triggered_states": sum(g["reason"] != "stable_proxy" for g in pre),
                 "u/budget_unserved_candidates": sum(
                     e["status"] == "global_budget_unserved" for e in events
                 ),
                 "tasks/n_instances": len(tasks),
-                "tasks/initial_all_failed_count": sum(t["successes"] == 0 for t in tasks),
-                "tasks/initial_all_failed_ratio": sum(t["successes"] == 0 for t in tasks)
+                "tasks/reference_first8_eligible": sum(
+                    t["reference_trajectories"] == 8 for t in tasks
+                ),
+                "tasks/reference_first8_all_failed": sum(
+                    t["reference_trajectories"] == 8 and t["reference_successes"] == 0
+                    for t in tasks
+                ),
+                "tasks/initial_all_failed_count": sum(
+                    t["successes"] == 0 for t in tasks
+                ),
+                "tasks/initial_all_failed_ratio": sum(
+                    t["successes"] == 0 for t in tasks
+                )
                 / len(tasks),
                 "prob/raw_q_changed_ratio": np.mean(
                     [abs(after[k]["q"] - before[k]["q"]) > 1e-8 for k in before]
@@ -494,7 +547,9 @@ class UController:
                 "prob/raw_advantage_changed_ratio": np.mean(
                     [abs(after[k]["a"] - before[k]["a"]) > 1e-8 for k in before]
                 ).item(),
-                "u/policy_updated_natural_states": sum(pi[s] != pi_after[s] for s in pi),
+                "u/policy_updated_natural_states": sum(
+                    pi[s] != pi_after[s] for s in pi
+                ),
                 "u/new_continuation_actions_at_natural_states": sum(
                     len(set(pi_after[s]) - set(pi[s])) for s in pi
                 ),
@@ -510,9 +565,12 @@ class UController:
         for k, n in Counter(g["reason"] for g in pre).items():
             metrics["u/reason/" + k] = n
         for k in range(max(t["trajectories"] for t in tasks) + 1):
-            metrics[f"tasks/initial_success_count_{k}"] = sum(t["successes"] == k for t in tasks)
+            metrics[f"tasks/initial_success_count_{k}"] = sum(
+                t["successes"] == k for t in tasks
+            )
         rows = [
-            dict(trajectory_id=k[0], step=k[1], before=before[k], after=after[k]) for k in before
+            dict(trajectory_id=k[0], step=k[1], before=before[k], after=after[k])
+            for k in before
         ]
         for name, obj in [
             ("credit.json", rows),
@@ -525,7 +583,9 @@ class UController:
         ]:
             self.write(folder / name, obj)
         failed = {t["task_id"] for t in tasks if t["successes"] == 0}
-        rescued = {t["task_id"] for t in probes if t["success"] and t["task_id"] in failed}
+        rescued = {
+            t["task_id"] for t in probes if t["success"] and t["task_id"] in failed
+        }
         metrics.update(
             {
                 "u/all_failed_rescued_tasks": len(rescued),
