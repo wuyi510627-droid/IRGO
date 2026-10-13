@@ -10,6 +10,19 @@ import json
 from pathlib import Path
 import random
 
+SOURCE_FILES = (
+    "web_agent_site/engine/goal.py",
+    "web_agent_site/engine/engine.py",
+    "web_agent_site/envs/web_agent_text_env.py",
+)
+
+
+def environment_source_hashes(webshop_root):
+    return {
+        name: hashlib.sha256((Path(webshop_root) / name).read_bytes()).hexdigest()
+        for name in SOURCE_FILES
+    }
+
 
 def fingerprint(value):
     return hashlib.sha256(
@@ -45,6 +58,8 @@ def build_manifest(
     if min(rounds, tasks_per_round, dev_count, test_count) < 1:
         raise ValueError("Empty experiment schedule")
     goals = _goals(catalog["goals"])
+    if set(catalog["source_sha256"]) != set(SOURCE_FILES):
+        raise ValueError("Incomplete environment source hashes")
     parents = list(range(len(goals)))
 
     def root(i):
@@ -94,7 +109,7 @@ def build_manifest(
         environment_seed=catalog["environment_seed"],
         products=catalog["products"],
         data_sha256=catalog["data_sha256"],
-        source_sha256=catalog.get("source_sha256", {}),
+        source_sha256=catalog["source_sha256"],
         catalog_sha256=fingerprint(goals),
         training_seed=train_seed,
         split_seed=split_seed,
@@ -126,6 +141,8 @@ class FixedTaskSchedule:
         if fingerprint(payload) != manifest.get("manifest_sha256"):
             raise ValueError("Task manifest hash mismatch")
         self.manifest = manifest
+        if set(manifest["source_sha256"]) != set(SOURCE_FILES):
+            raise ValueError("Incomplete environment source hashes")
         self.is_train, self.env_num, self.cursor = is_train, env_num, 0
         self.environment_seed = manifest["environment_seed"]
         self.manifest_sha256 = manifest["manifest_sha256"]
@@ -171,6 +188,10 @@ class FixedTaskSchedule:
                 raise ValueError("Training row width differs from environment batch")
         elif env_num > len(manifest["development_schedule"]):
             raise ValueError("Development schedule is too short")
+
+    def verify_sources(self, webshop_root):
+        if environment_source_hashes(webshop_root) != self.manifest["source_sha256"]:
+            raise ValueError("Runtime environment source differs from frozen manifest")
 
     def verify_goals(self, goals):
         if fingerprint(goals) != self.manifest["catalog_sha256"]:

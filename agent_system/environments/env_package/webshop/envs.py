@@ -236,10 +236,12 @@ class WebshopMultiProcessEnv(gym.Env):
         self._rng = np.random.RandomState(seed)
         # Explicit opt-in: archived runs retain their original seed/index rules.
         self._task_schedule = None
+        self._workers = []
         manifest = os.environ.get('IRGO_TASK_MANIFEST')
         if manifest:
             from recipe.GraphGPO.task_protocol import FixedTaskSchedule
             self._task_schedule = FixedTaskSchedule(manifest, is_train, env_num, seed)
+            self._task_schedule.verify_sources(os.path.join(os.path.dirname(__file__), 'webshop'))
         all_seeds = [
             self._task_schedule.environment_seed if self._task_schedule else seed + i // group_n
             for i in range(self.num_processes)

@@ -473,17 +473,11 @@ class UTrainingBridge:
                 ),
             }
         )
-        failed_tasks = {
-            t["task_id"]
-            for t in self.collector.u_capture.traces
-            if not any(
-                x["success"]
-                for x in self.collector.u_capture.traces
-                if x["task_id"] == t["task_id"]
-            )
-        }
+        from .prob_u import failed_trajectory_ids
+
+        failed_ids = failed_trajectory_ids(self.collector.u_capture.traces, limit=8)
         failed_rows = torch.tensor(
-            [str(t) in failed_tasks for t in batch.non_tensor_batch["uid"]],
+            [str(t) in failed_ids for t in batch.non_tensor_batch["traj_uid"]],
             device=mask.device,
         )
         self.last_metrics.update(

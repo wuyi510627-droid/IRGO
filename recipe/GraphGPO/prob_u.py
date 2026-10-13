@@ -381,6 +381,19 @@ def history_shadow(natural, past, horizon):
     )
 
 
+def failed_trajectory_ids(natural, limit=None):
+    """Diagnostic cohort only; never changes rewards, gates or auxiliary eligibility."""
+    groups = defaultdict(list)
+    for trace in natural:
+        groups[trace["task_id"]].append(trace)
+    return {
+        t["id"]
+        for group in groups.values()
+        if not any(t["success"] for t in group[:limit])
+        for t in group[:limit]
+    }
+
+
 class UController:
     """编排自然采样→分支干预→信用重算→审计的单轮数据生命周期。"""
 
@@ -532,9 +545,16 @@ class UController:
                     for t in tasks
                 ),
                 "tasks/initial_all_failed_count": sum(
-                    t["successes"] == 0 for t in tasks
+                    t["reference_successes"] == 0 for t in tasks
                 ),
                 "tasks/initial_all_failed_ratio": sum(
+                    t["reference_successes"] == 0 for t in tasks
+                )
+                / len(tasks),
+                "tasks/all_natural_all_failed_count": sum(
+                    t["successes"] == 0 for t in tasks
+                ),
+                "tasks/all_natural_all_failed_ratio": sum(
                     t["successes"] == 0 for t in tasks
                 )
                 / len(tasks),

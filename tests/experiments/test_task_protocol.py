@@ -1,7 +1,13 @@
+from pathlib import Path
 import copy
 import pytest
 
-from recipe.GraphGPO.task_protocol import build_manifest, FixedTaskSchedule, fingerprint
+from recipe.GraphGPO.task_protocol import (
+    build_manifest,
+    FixedTaskSchedule,
+    fingerprint,
+    environment_source_hashes,
+)
 
 
 def catalog():
@@ -28,7 +34,10 @@ def catalog():
         products=1000,
         environment_seed=0,
         data_sha256={"items": "fixture"},
-        source_sha256={},
+        source_sha256=environment_source_hashes(
+            Path(__file__).resolve().parents[2]
+            / "agent_system/environments/env_package/webshop/webshop"
+        ),
         goals=goals,
     )
 
@@ -82,3 +91,23 @@ def test_wrong_catalog_seed_or_modified_manifest_is_rejected():
     )
     with pytest.raises(ValueError, match="partition"):
         FixedTaskSchedule(changed, is_train=True, env_num=4, train_seed=0)
+
+
+def test_source_hashes_are_required_and_checked_at_runtime(tmp_path):
+    from recipe.GraphGPO.task_protocol import SOURCE_FILES
+
+    source = catalog()
+    source["source_sha256"] = {}
+    with pytest.raises(ValueError, match="Incomplete"):
+        build_manifest(source, dev_count=8, test_count=8)
+    for name in SOURCE_FILES:
+        p = tmp_path / name
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("original")
+    source["source_sha256"] = environment_source_hashes(tmp_path)
+    manifest = build_manifest(source, dev_count=8, test_count=8)
+    schedule = FixedTaskSchedule(manifest, True, 16, 0)
+    schedule.verify_sources(tmp_path)
+    (tmp_path / SOURCE_FILES[1]).write_text("modified reward code")
+    with pytest.raises(ValueError, match="source differs"):
+        schedule.verify_sources(tmp_path)

@@ -18,10 +18,13 @@ web = args.repo / "agent_system/environments/env_package/webshop/webshop"
 sys.path.insert(0, str(web))
 from web_agent_site.envs.web_agent_text_env import WebAgentTextEnv
 
-expected = {
-    "items_shuffle_1000.json": "30a4765c3a327af72d9a9a95a6b2486d516f0fa1d3ecd83681901ce82a21b269",
-    "items_ins_v2_1000.json": "f88a36314a397b53b3d9c3fa5878e5f7b26d35019a51ec83fbedeca61a948f6f",
-}
+root = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(root))
+sys.path.insert(0, str(root / "scripts/irgo"))
+from common import PRODUCT_HASHES
+from recipe.GraphGPO.task_protocol import environment_source_hashes
+
+expected = PRODUCT_HASHES
 for name, wanted in expected.items():
     assert (
         hashlib.sha256((web / "data" / name).read_bytes()).hexdigest() == wanted
@@ -43,14 +46,7 @@ data = dict(
     products=1000,
     data_sha256=expected,
     goals=rows,
-    source_sha256={
-        str(p.relative_to(web)): hashlib.sha256(p.read_bytes()).hexdigest()
-        for p in [
-            web / "web_agent_site/engine/goal.py",
-            web / "web_agent_site/engine/engine.py",
-            web / "web_agent_site/envs/web_agent_text_env.py",
-        ]
-    },
+    source_sha256=environment_source_hashes(web),
 )
 args.output.parent.mkdir(parents=True, exist_ok=True)
 args.output.write_text(json.dumps(data, ensure_ascii=False))

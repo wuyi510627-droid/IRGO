@@ -72,7 +72,7 @@ def test_random_changes_sites_but_keeps_action_order_and_task_priority():
 
 
 def test_first8_failure_reference_is_not_changed_by_ninth_success(tmp_path):
-    from recipe.GraphGPO.prob_u import UController
+    from recipe.GraphGPO.prob_u import UController, failed_trajectory_ids
 
     traces = []
     for i in range(10):
@@ -116,8 +116,12 @@ def test_first8_failure_reference_is_not_changed_by_ninth_success(tmp_path):
         raise AssertionError("No branches in natural-only control")
 
     before, after, metrics = UController(cfg, tmp_path).process(traces, forbidden, 1)
+    assert failed_trajectory_ids(traces, limit=8) == {str(i) for i in range(8)}
+    assert failed_trajectory_ids(traces) == set()
     assert before == after
     assert metrics["tasks/reference_first8_eligible"] == 1
     assert metrics["tasks/reference_first8_all_failed"] == 1
-    assert metrics["tasks/initial_all_failed_count"] == 0
+    assert metrics["tasks/initial_all_failed_count"] == 1
+    assert metrics["tasks/initial_all_failed_ratio"] == 1
+    assert metrics["tasks/all_natural_all_failed_count"] == 0
     assert metrics["u/extra_input_tokens"] == metrics["u/extra_generated_tokens"] == 0
