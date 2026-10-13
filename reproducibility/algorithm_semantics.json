@@ -1,0 +1,25 @@
+{
+  "description": "Archived algorithm AST fingerprints, excluding docstrings, locations and empty Python 3.12+ type_params.",
+  "sha256": {
+    "agent_system/environments/env_package/webshop/envs.py": "c99ebc2105aa978355d128c39cb2e5e9dcef163e3d9e3cafb333ffe4a0762637",
+    "agent_system/environments/env_package/webshop/projection.py": "8675ed402915654e624575896c5b5a10593d24a2d6d1f0eabe23d0b9b4da10a1",
+    "agent_system/environments/env_package/webshop/progress_checks.py": "7cc92c5627e137e23d3af79f7461bf4d15364975e00cc144715ab0aa2bc26f12",
+    "verl/workers/fsdp_workers.py": "92cf62b61f3ce8e2b54c3e1c8bae389d2dc4e1e7ced8acc35e9e6ab53a4f993b",
+    "verl/workers/actor/dp_actor.py": "1668aa9291379037fd7ce4dc3edcada88070094f8025298c69d0de0ca144a279",
+    "verl/utils/checkpoint/fsdp_checkpoint_manager.py": "7918f09de150a7b7460c25c82b7c4548c7f08f45cdfafc3a3d28a6df6a4a116e",
+    "recipe/GraphGPO/graphgpo_env_manager.py": "33b8655034e2d7ec8240aca72666fd06a054dd72c58f2984713bc39d3a11e4af",
+    "recipe/GraphGPO/prob_u_runtime.py": "43dc443d50ae61c454102edd89f79d1e5df8f3553ea8681d75e3bc234cca1b91",
+    "recipe/GraphGPO/full_runtime.py": "130d7cb6ba35190cda4a44989eed6e5511e29b47b5dc575d524a5f5f0ba02c78",
+    "recipe/GraphGPO/probabilistic_credit.py": "b836b76c904a30f69a97d44e491ae8974310d83bfcf37603c76b692665e91b9d",
+    "recipe/GraphGPO/full_intervention.py": "39434597c6cf584550d6377c249932fa2310884515d4dd3678192b7f14cd7806",
+    "recipe/GraphGPO/rollout_loop.py": "39829eccc18210aa4a67be05adfce06af5fd7da2765be67eecb531a156365941",
+    "recipe/GraphGPO/success_data_tools.py": "12fa19a176de878c5cbba9d7da8e151806691d19f8e94422e87857186a57e453",
+    "recipe/GraphGPO/graphgpo_ray_trainer.py": "ca155d788d08adefca99ca91100bd4c23cf7c706f3a10cee22217b5c1a869e03",
+    "recipe/GraphGPO/prob_u.py": "d2683fd2190c282a2d02fdb2dbf4153e8cd191ceee6cd03d3f84212996c21c55",
+    "recipe/GraphGPO/core_graph.py": "b1d56699b1c59f29bd72eaecbd4723d1bb575cd68c1729cc6c9fcf6cb913e552",
+    "recipe/GraphGPO/full_search.py": "0af1af8b7ae56cde643fcf7b19d677eba1181827489087d8544e5edece716c47",
+    "recipe/GraphGPO/success_branch_loss.py": "be5f4d91ad5bbfe4e48c90e5b67d2bf42e511fb9826f0f19125bafcf0d037a38",
+    "recipe/GraphGPO/prob_trainer_hook.py": "bbe9621c1ba1fe82c5d4cb8e15e1733fbcdefda035a9b268b491f9220cb62d71",
+    "recipe/GraphGPO/main_graphgpo.py": "4be94abe1c8f82e4018e2be9451f2c82f74a0665713a55a6fbbccc8f1ed2518f"
+  }
+}

@@ -1,0 +1,150 @@
+{
+  "protocol": {
+    "checkpoint_step": 150,
+    "products": 1000,
+    "observation_mode": "text_rich",
+    "max_steps": 30,
+    "temperature": 0.4,
+    "episodes_per_environment_seed": 512,
+    "environment_seeds": [
+      123,
+      456,
+      789
+    ],
+    "rollouts_per_task_instance": 1,
+    "training_seeds_per_method": 1,
+    "intervention_during_evaluation": false,
+    "historical_baselines_reused": true
+  },
+  "models": {
+    "GraphGPO": {
+      "total_successes": 1147,
+      "total_episodes": 1536,
+      "success_rate": 0.7467447916666666,
+      "runs": [
+        {
+          "seed": 123,
+          "episodes": 512,
+          "successes": 392,
+          "success_rate": 0.765625,
+          "mean_task_score": 0.8897713110457252,
+          "wandb": "https://wandb.ai/wuyi510627-dongnan/qwen2.5_1.5b_webshop_eval/runs/js5wely7"
+        },
+        {
+          "seed": 456,
+          "episodes": 512,
+          "successes": 377,
+          "success_rate": 0.736328125,
+          "mean_task_score": 0.8710731477723666,
+          "wandb": "https://wandb.ai/wuyi510627-dongnan/qwen2.5_1.5b_webshop_eval/runs/yl0er98s"
+        },
+        {
+          "seed": 789,
+          "episodes": 512,
+          "successes": 378,
+          "success_rate": 0.73828125,
+          "mean_task_score": 0.8691169507575758,
+          "wandb": "https://wandb.ai/wuyi510627-dongnan/qwen2.5_1.5b_webshop_eval/runs/eojjqql1"
+        }
+      ]
+    },
+    "Prob": {
+      "total_successes": 1174,
+      "total_episodes": 1536,
+      "success_rate": 0.7643229166666666,
+      "runs": [
+        {
+          "seed": 123,
+          "episodes": 512,
+          "successes": 404,
+          "success_rate": 0.7890625,
+          "mean_task_score": 0.8913412233382936,
+          "wandb": "https://wandb.ai/wuyi510627-dongnan/qwen2.5_1.5b_webshop_eval/runs/joy023ow"
+        },
+        {
+          "seed": 456,
+          "episodes": 512,
+          "successes": 389,
+          "success_rate": 0.759765625,
+          "mean_task_score": 0.8637936705221861,
+          "wandb": "https://wandb.ai/wuyi510627-dongnan/qwen2.5_1.5b_webshop_eval/runs/rq7lrozb"
+        },
+        {
+          "seed": 789,
+          "episodes": 512,
+          "successes": 381,
+          "success_rate": 0.744140625,
+          "mean_task_score": 0.8653598766684705,
+          "wandb": "https://wandb.ai/wuyi510627-dongnan/qwen2.5_1.5b_webshop_eval/runs/ho9c3rwu"
+        }
+      ]
+    },
+    "Previous Prob+U": {
+      "total_successes": 1120,
+      "total_episodes": 1536,
+      "success_rate": 0.7291666666666666,
+      "runs": [
+        {
+          "seed": 123,
+          "episodes": 512,
+          "successes": 384,
+          "success_rate": 0.75,
+          "mean_task_score": 0.8777003855519482,
+          "wandb": "https://wandb.ai/wuyi510627-dongnan/qwen2.5_1.5b_webshop_eval/runs/pecj7r3r"
+        },
+        {
+          "seed": 456,
+          "episodes": 512,
+          "successes": 361,
+          "success_rate": 0.705078125,
+          "mean_task_score": 0.8442548954951299,
+          "wandb": "https://wandb.ai/wuyi510627-dongnan/qwen2.5_1.5b_webshop_eval/runs/hhnrh1nn"
+        },
+        {
+          "seed": 789,
+          "episodes": 512,
+          "successes": 375,
+          "success_rate": 0.732421875,
+          "mean_task_score": 0.8653237734487733,
+          "wandb": "https://wandb.ai/wuyi510627-dongnan/qwen2.5_1.5b_webshop_eval/runs/15yofl3a"
+        }
+      ]
+    },
+    "IRGO": {
+      "total_successes": 1248,
+      "total_episodes": 1536,
+      "success_rate": 0.8125,
+      "runs": [
+        {
+          "seed": 123,
+          "episodes": 512,
+          "successes": 425,
+          "success_rate": 0.830078125,
+          "mean_task_score": 0.9044448037856241,
+          "wandb": "https://wandb.ai/wuyi510627-dongnan/qwen2.5_1.5b_webshop_eval/runs/91z5hhvp"
+        },
+        {
+          "seed": 456,
+          "episodes": 512,
+          "successes": 414,
+          "success_rate": 0.80859375,
+          "mean_task_score": 0.8954929597312411,
+          "wandb": "https://wandb.ai/wuyi510627-dongnan/qwen2.5_1.5b_webshop_eval/runs/gc7j16qw"
+        },
+        {
+          "seed": 789,
+          "episodes": 512,
+          "successes": 409,
+          "success_rate": 0.798828125,
+          "mean_task_score": 0.8897284085272366,
+          "wandb": "https://wandb.ai/wuyi510627-dongnan/qwen2.5_1.5b_webshop_eval/runs/4aiu19w3"
+        }
+      ]
+    }
+  },
+  "limits": [
+    "Environment seeds are not independent training seeds.",
+    "This release reports WebShop-1k, not the full catalog.",
+    "No equal-budget causal ablation is claimed."
+  ]
+}

@@ -1,0 +1,47 @@
+# Python and local environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.DS_Store
+.idea/
+.vscode/
+
+# Local credentials / operational configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.netrc
+known_hosts
+*known_hosts*
+
+# All runtime data, model weights, environment indexes and run logs stay local.
+/data/
+/runs/
+/checkpoints/
+/models/
+/exports/
+/wandb/
+**/wandb/
+**/u_evidence/
+**/data/
+**/search_engine/resources*/
+**/search_engine/indexes*/
+**/user_session_logs/
+*.parquet
+*.safetensors
+*.pt
+*.pth
+*.bin
+*.log
+*.tar
+*.tar.gz
+*.zip
+*.partial

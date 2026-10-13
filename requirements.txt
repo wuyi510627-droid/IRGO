@@ -1,0 +1,2 @@
+# IRGO reference requirements; GPU stack installation is documented in README.md.
+-r requirements/irgo.txt
