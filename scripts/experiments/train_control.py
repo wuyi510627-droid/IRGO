@@ -1,4 +1,4 @@
-"""Prepare or run a frozen P/N/R/F control. No execution without --execute."""
+"""Prepare or run frozen P/N/R/F/F6 controls. No execution without --execute."""
 
 import argparse
 import json
@@ -17,15 +17,17 @@ from recipe.GraphGPO.task_protocol import FixedTaskSchedule
 
 
 def control_config(arm, model, data_dir, output, manifest, seed, profile="full150"):
-    if arm not in ("P", "N", "R", "F") or profile not in ("full150", "smoke"):
+    if arm not in ("P", "N", "R", "F", "F6") or profile not in ("full150", "smoke"):
         raise ValueError("Unknown arm or profile")
     schedule = FixedTaskSchedule(manifest, True, 16, seed)
     cfg = training_config(model, data_dir, output)
     cfg["env"]["seed"] = seed
-    cfg["env"]["rollout"]["n"] = 10 if arm == "N" else 8
+    cfg["env"]["rollout"]["n"] = {"N": 10, "F6": 6}.get(arm, 8)
     cfg["data"]["seed"] = seed
     cfg["actor_rollout_ref"]["rollout"]["seed"] = seed
     u = cfg["algorithm"]["u"]
+    # Shared diagnostic cohort across controls; does not decide branch learning.
+    u["reference_natural_count"] = 6
     u["site_selection"] = "random" if arm == "R" else "heuristic"
     u["seed"] = 20260927 + seed
     if arm in ("P", "N"):
@@ -115,7 +117,7 @@ def check_smoke(path, experiment):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--arm", choices=["P", "N", "R", "F"], required=True)
+    parser.add_argument("--arm", choices=["P", "N", "R", "F", "F6"], required=True)
     for arg in ["model", "data-dir", "output", "manifest"]:
         parser.add_argument("--" + arg, type=Path, required=True)
     parser.add_argument("--seed", type=int, default=0)

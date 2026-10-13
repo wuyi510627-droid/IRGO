@@ -15,8 +15,8 @@
     },
     "recipe/GraphGPO/prob_u_runtime.py": {
       "baseline_ast_sha256": "43dc443d50ae61c454102edd89f79d1e5df8f3553ea8681d75e3bc234cca1b91",
-      "new_ast_sha256": "2322e4993750c6c57da77ee5030a6c5f906acadbd7e2ea3ec170753052b8db64",
-      "reason": "Record natural/continuation input tokens, effective steps and PPO batch exposure; credit/loss composition unchanged. Diagnose only the fixed first-eight failure cohort."
+      "new_ast_sha256": "9844059ba0bb0b2c61a949b95bb9598e96cc00f10d5c24071bbbab66ad333ae4",
+      "reason": "Record generation input tokens, effective steps and PPO exposure; configurable failure diagnostic cohort (new controls first6); credit/loss composition unchanged."
     },
     "recipe/GraphGPO/full_runtime.py": {
       "baseline_ast_sha256": "130d7cb6ba35190cda4a44989eed6e5511e29b47b5dc575d524a5f5f0ba02c78",
@@ -35,8 +35,8 @@
     },
     "recipe/GraphGPO/prob_u.py": {
       "baseline_ast_sha256": "d2683fd2190c282a2d02fdb2dbf4153e8cd191ceee6cd03d3f84212996c21c55",
-      "new_ast_sha256": "0ed2de03526bc1fa45045886b26012033214b3054388beb62accea986d0a337b",
-      "reason": "Explicit random-site control option and additional cost/first-eight failure metrics; credit equations unchanged."
+      "new_ast_sha256": "5b8bb6031e8f20c7bd3e565ccc8e1ee2385b801bb23f9a3f8997a7e4cb40d9ea",
+      "reason": "Explicit random-site control and configurable diagnostic cohort (historical default8, new controls6); cost and failure metrics; credit equations unchanged."
     }
   }
 }

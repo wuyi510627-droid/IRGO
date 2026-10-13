@@ -1,4 +1,8 @@
-# 固定任务协议与四组对照
+# 固定任务协议与采样对照
+
+当前优先实验：**F6，每任务6条自然＋原IRGO干预**。N10、R8暂缓，不自动接续。
+F6仍使用原全失败救援和成功分支辅助学习规则；全失败资格根据该任务全部6条自然轨迹判断。
+没有真实成功分支时，不构造正奖励或成功标签。
 
 此分支是后续实验版本，尚未取得新协议上的模型结果。历史150轮结果属于
 `eefaf39004be92f51c7ba316d0c871a913542750`，复现历史版本请检出该提交。
@@ -48,19 +52,20 @@ python scripts/irgo/prepare_data.py --output /data/irgo/smoke_metadata --train-r
 
 ```bash
 # 不加--execute，只显示待运行配置。
-python scripts/experiments/train_control.py --arm N --model /data/base_model --data-dir /data/irgo/smoke_metadata --manifest /data/irgo/protocol/seed0.json --output /data/irgo/N_smoke --profile smoke --execute
-python scripts/experiments/train_control.py --arm N --model /data/base_model --data-dir /data/irgo/metadata --manifest /data/irgo/protocol/seed0.json --output /data/irgo/N150 --smoke-output /data/irgo/N_smoke --execute
+python scripts/experiments/train_control.py --arm F6 --model /data/base_model --data-dir /data/irgo/smoke_metadata --manifest /data/irgo/protocol/seed0.json --output /data/irgo/F6_smoke --profile smoke --execute
+python scripts/experiments/train_control.py --arm F6 --model /data/base_model --data-dir /data/irgo/metadata --manifest /data/irgo/protocol/seed0.json --output /data/irgo/F6_150 --smoke-output /data/irgo/F6_smoke --execute
 ```
 
-对R重复上述两步，使用独立输出目录和`--arm R`。P/F及后续seed也必须重新通过
-对应短程检查。短程保留完整16×8或16×10自然batch、实际分支预算，执行2轮训练
+当前只优先执行F6。后续经安排运行P/N/R/F及其他seed时，也必须重新通过
+对应短程检查。短程保留完整16×6（F6）、16×8或16×10自然batch、实际分支预算，执行2轮训练
 并验证开发重置路径。新入口要求metadata恰好一批，避免验证多批反复重置成同一任务。
 运行源码、种子、清单、初始权重不匹配，或短程退出失败/跳过优化器更新时拒绝长训。
 旧`train.py`入口不接受继承的`IRGO_TASK_MANIFEST`，避免默默改变历史任务协议。
 
 ## 观测和比较
 
-P=8自然；N=10自然；R=8自然+随机合格位置；F=8自然+原启发式位置。
+P=8自然；N=10自然；R=8自然+随机合格位置；F=8自然+原启发式位置；
+F6=6自然+原启发式位置。F6保持每轮32分支、每任务4分支、额外480调用限制。
 P/N仍运行信用与历史复用观察器，但没有查询提议、分支调用、成功分支辅助损失。
 历史轨迹继续仅供影子诊断；不会进入当前信用或策略梯度。
 
@@ -71,15 +76,15 @@ R只随机合格上下文的顺序，保留任务优先级、候选动作生成/
 
 每轮记录：自然及干预实际调用、有效步、重放前缀、生成输入/输出token（含补齐
 请求）、查询提议、PPO训练行与token、优化器尝试/完成次数、辅助标签计划token、
-初始前8条全失败数、N全部10条全失败数、干预救回、最终优势变化、历史只读覆盖。
-`tasks/initial_all_failed_*`统一使用前8条，`tasks/all_natural_all_failed_*`报告全部自然样本；
-失败轨迹优势诊断只统计前8条全失败组内的前8条轨迹。实际信用估计和辅助标签资格仍以
+初始前6条全失败数、N全部10条全失败数、干预救回、最终优势变化、历史只读覆盖。
+`tasks/initial_all_failed_*`统一使用前6条，`tasks/all_natural_all_failed_*`报告全部自然样本；
+失败轨迹优势诊断只统计前6条全失败组内的前6条轨迹。实际信用估计和辅助标签资格仍以
 全部当前自然证据为准；观测口径不改变学习规则。
 
 PPO token是训练batch在各epoch的暴露量；辅助token是计划标签暴露量，不含所有
 前向审计/重算，二者都不是总GPU FLOPs。墙钟耗时同时报告。
 
-N/R/F每轮调用上限2400，只能称为同上限；历史F实际均值2153.55。论文应同时给
+F6与P每轮调用上限1920；N/R/F每轮调用上限2400，只能称为同上限；历史F实际均值2153.55。论文应同时给
 轮数、实际累计调用、生成token和耗时轴。四组新协议结果必须重新训练，不能用
 历史P/F填表；不得凭单次训练或同上限直接宣称严格等成本胜出。
 

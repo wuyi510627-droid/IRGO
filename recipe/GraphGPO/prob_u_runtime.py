@@ -475,7 +475,10 @@ class UTrainingBridge:
         )
         from .prob_u import failed_trajectory_ids
 
-        failed_ids = failed_trajectory_ids(self.collector.u_capture.traces, limit=8)
+        failed_ids = failed_trajectory_ids(
+            self.collector.u_capture.traces,
+            limit=self.controller.cfg.reference_natural_count,
+        )
         failed_rows = torch.tensor(
             [str(t) in failed_ids for t in batch.non_tensor_batch["traj_uid"]],
             device=mask.device,

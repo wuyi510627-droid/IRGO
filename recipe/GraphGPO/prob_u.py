@@ -68,6 +68,8 @@ class UConfig:
     max_probes_per_task: int = 4
     max_extra_env_calls: int = 480
     site_selection: str = "heuristic"
+    # Observation cohort only; intervention/auxiliary eligibility uses all natural evidence.
+    reference_natural_count: int = 8
     auxiliary_enabled: bool = True
     auxiliary_coefficient: float = 0.1
     seed: int = 20260927
@@ -75,6 +77,8 @@ class UConfig:
     history_max_trajectories: int = 1280
 
     def __post_init__(self):
+        if self.reference_natural_count < 1:
+            raise ValueError("Invalid reference trajectory count")
         if self.site_selection not in ("heuristic", "random"):
             raise ValueError("Unsupported site selection control")
         if not 0 <= self.auxiliary_coefficient <= 1:
@@ -485,8 +489,12 @@ class UController:
                     goal_id=ts[0]["goal_id"],
                     trajectories=len(ts),
                     successes=sum(t["success"] for t in ts),
-                    reference_trajectories=min(8, len(ts)),
-                    reference_successes=sum(t["success"] for t in ts[:8]),
+                    reference_trajectories=min(
+                        self.cfg.reference_natural_count, len(ts)
+                    ),
+                    reference_successes=sum(
+                        t["success"] for t in ts[: self.cfg.reference_natural_count]
+                    ),
                     partial_scores=[t["score"] for t in ts],
                     stop_reasons=[t["stop_reason"] for t in ts],
                     probes=by_task[task],
@@ -537,11 +545,14 @@ class UController:
                     e["status"] == "global_budget_unserved" for e in events
                 ),
                 "tasks/n_instances": len(tasks),
-                "tasks/reference_first8_eligible": sum(
-                    t["reference_trajectories"] == 8 for t in tasks
+                "tasks/reference_natural_count": self.cfg.reference_natural_count,
+                f"tasks/reference_first{self.cfg.reference_natural_count}_eligible": sum(
+                    t["reference_trajectories"] == self.cfg.reference_natural_count
+                    for t in tasks
                 ),
-                "tasks/reference_first8_all_failed": sum(
-                    t["reference_trajectories"] == 8 and t["reference_successes"] == 0
+                f"tasks/reference_first{self.cfg.reference_natural_count}_all_failed": sum(
+                    t["reference_trajectories"] == self.cfg.reference_natural_count
+                    and t["reference_successes"] == 0
                     for t in tasks
                 ),
                 "tasks/initial_all_failed_count": sum(

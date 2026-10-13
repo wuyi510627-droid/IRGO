@@ -17,6 +17,7 @@ from test_task_protocol import catalog
         ("N", 10, 0, False, "heuristic"),
         ("R", 8, 32, True, "random"),
         ("F", 8, 32, True, "heuristic"),
+        ("F6", 6, 32, True, "heuristic"),
     ],
 )
 def test_controls_share_protocol_and_only_intended_changes(
@@ -47,17 +48,21 @@ def test_controls_share_protocol_and_only_intended_changes(
     assert cfg["trainer"]["resume_mode"] == "disable"
     if arm in ["P", "N"]:
         assert u["max_extra_env_calls"] == u["max_probes_per_task"] == 0
-    if arm != "P":
+    assert u["reference_natural_count"] == 6
+    if arm in ("P", "F6"):
+        assert 16 * n * 15 + u["max_extra_env_calls"] == 1920
+    else:
         assert 16 * n * 15 + u["max_extra_env_calls"] == 2400
 
 
-def test_smoke_keeps_full_batch_but_never_runs_150_rounds(tmp_path):
+@pytest.mark.parametrize("arm,n", [("N", 10), ("F6", 6)])
+def test_smoke_keeps_full_batch_but_never_runs_150_rounds(tmp_path, arm, n):
     path = tmp_path / "manifest.json"
     path.write_text(json.dumps(build_manifest(catalog(), dev_count=8, test_count=8)))
     cfg = control_config(
-        "N", tmp_path / "m", tmp_path / "d", tmp_path / "o", path, 0, "smoke"
+        arm, tmp_path / "m", tmp_path / "d", tmp_path / "o", path, 0, "smoke"
     )
-    assert cfg["env"]["rollout"]["n"] == 10 and cfg["data"]["train_batch_size"] == 16
+    assert cfg["env"]["rollout"]["n"] == n and cfg["data"]["train_batch_size"] == 16
     assert cfg["trainer"]["total_training_steps"] == 2
     assert cfg["trainer"]["test_freq"] == 1 and cfg["data"]["val_batch_size"] == 8
 
@@ -100,3 +105,19 @@ def test_full_run_rejects_failed_or_different_smoke(tmp_path):
     metrics.write_text(json.dumps(d))
     with pytest.raises(ValueError, match="skipped"):
         check_smoke(tmp_path, expected)
+
+
+def test_f6_changes_only_natural_count_and_run_name(tmp_path):
+    path = tmp_path / "manifest.json"
+    path.write_text(json.dumps(build_manifest(catalog(), dev_count=8, test_count=8)))
+    old = control_config(
+        "F", tmp_path / "m", tmp_path / "d", tmp_path / "o", path, 0, "smoke"
+    )
+    new = control_config(
+        "F6", tmp_path / "m", tmp_path / "d", tmp_path / "o", path, 0, "smoke"
+    )
+    assert new["algorithm"]["u"]["auxiliary_enabled"]
+    assert new["algorithm"]["u"]["auxiliary_coefficient"] == 0.1
+    new["env"]["rollout"]["n"] = old["env"]["rollout"]["n"]
+    new["trainer"]["experiment_name"] = old["trainer"]["experiment_name"]
+    assert new == old
