@@ -42,9 +42,17 @@ def canonical_ast(node):
     return node
 
 
-def test_release_preserves_archived_algorithm_ast():
+def test_versioned_algorithm_ast_changes_are_explicit():
     reference = json.loads((ROOT / "reproducibility/algorithm_semantics.json").read_text())
+    changes = json.loads((ROOT / "reproducibility/experimental_changes.json").read_text())
+    assert changes['historical_result_applies'] is False
+    assert set(changes['files']) <= set(reference['sha256'])
     for name, expected in reference["sha256"].items():
+        if name in changes['files']:
+            change = changes['files'][name]
+            assert change['baseline_ast_sha256'] == expected
+            assert change['reason'] and change['new_ast_sha256'] != expected
+            expected = change['new_ast_sha256']
         tree = canonical_ast(ast.parse((ROOT / name).read_text()))
         value = json.dumps(tree, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()
         assert hashlib.sha256(value).hexdigest() == expected, name

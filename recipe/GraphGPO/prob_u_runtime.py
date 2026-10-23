@@ -34,11 +34,14 @@ class TraceCapture:
         self.traces = []
         self.physical_calls = 0
         self.generated_tokens = 0
+        self.generated_input_tokens = 0
         self.generated_requests = 0
         for i, info in enumerate(infos):
             if "u_goal_index" not in info or "u_environment_seed" not in info:
                 raise ValueError("U requires reset identity metadata from WebShop")
-            goal = digest([envs.tasks[i], info["u_environment_seed"], meta["environment_version"]])
+            goal = digest(
+                [envs.tasks[i], info["u_environment_seed"], meta["environment_version"]]
+            )
             self.traces.append(
                 dict(
                     id=str(tids[i]),
@@ -60,11 +63,15 @@ class TraceCapture:
             )
 
     def before(self, batch, step):
+        self.generated_input_tokens += int(batch.batch["attention_mask"].sum().item())
         ids = plain(batch.non_tensor_batch["raw_prompt_ids"])
         self.prompts = ids
         keys = [
             context_key(
-                t["goal_id"], ids[i], batch.non_tensor_batch["anchor_obs"][i], self.max_steps - step
+                t["goal_id"],
+                ids[i],
+                batch.non_tensor_batch["anchor_obs"][i],
+                self.max_steps - step,
             )
             for i, t in enumerate(self.traces)
         ]
@@ -128,7 +135,9 @@ class TraceCapture:
                     forced=False,
                     response_ids=[int(v) for v, m in zip(tokens, mask) if m],
                     clickables_before=list(
-                        self.previous_infos[i].get("available_actions", {}).get("clickables", [])
+                        self.previous_infos[i]
+                        .get("available_actions", {})
+                        .get("clickables", [])
                     ),
                     checked_before=self.previous_infos[i].get("u_progress", {}),
                     checked_after=infos[i].get("u_progress", {}),
@@ -172,7 +181,9 @@ class ProbeRunner:
         from verl.protocol import pad_dataproto_to_divisor, unpad_dataproto
 
         vector = self.envs.envs.branch(ref["slot"], ref["goal_index"])
-        manager = WebshopEnvironmentManager(vector, self.envs.projection_f, self.collector.config)
+        manager = WebshopEnvironmentManager(
+            vector, self.envs.projection_f, self.collector.config
+        )
         # preprocess uses the observation to build the prompt. Keep the original
         # slot's dataset metadata as well, rather than substituting another task.
         gen = self.collector.u_capture.gen_batch[ref["slot"] : ref["slot"] + 1]
@@ -189,11 +200,14 @@ class ProbeRunner:
         )
         total_calls = 0
         generated_tokens = 0
+        generated_input_tokens = 0
         generated_requests = 0
         for step in range(1, ref["max_steps"] + 1):
             batch = self.collector.preprocess_batch(gen, obs)
             ids = plain(batch.non_tensor_batch["raw_prompt_ids"][0])
-            key = context_key(ref["goal_id"], ids, obs["anchor"][0], ref["max_steps"] - step + 1)
+            key = context_key(
+                ref["goal_id"], ids, obs["anchor"][0], ref["max_steps"] - step + 1
+            )
             seed = None
             response_ids = []
             if step < branch["step"]:
@@ -207,9 +221,9 @@ class ProbeRunner:
                     raise ValueError("Probe branch full-context mismatch")
                 raw = "<think></think><action>" + action + "</action>"
                 mode = "forced"
-                response_ids = self.collector.tokenizer.encode(raw, add_special_tokens=False) + [
-                    self.collector.tokenizer.eos_token_id
-                ]
+                response_ids = self.collector.tokenizer.encode(
+                    raw, add_special_tokens=False
+                ) + [self.collector.tokenizer.eos_token_id]
             else:
                 inp = batch.pop(
                     batch_keys=["input_ids", "attention_mask", "position_ids"],
@@ -223,6 +237,9 @@ class ProbeRunner:
                     "u_sampling_seed": seed,
                 }
                 padded, n = pad_dataproto_to_divisor(inp, self.actor.world_size)
+                generated_input_tokens += int(
+                    padded.batch["attention_mask"].sum().item()
+                )
                 padded_result = self.actor.generate_sequences(padded)
                 width = padded_result.batch["responses"].shape[1]
                 generated_tokens += int(
@@ -231,7 +248,9 @@ class ProbeRunner:
                 generated_requests += len(padded_result)
                 result = unpad_dataproto(padded_result, pad_size=n)
                 responses = result.batch["responses"]
-                raw = self.collector.tokenizer.batch_decode(responses, skip_special_tokens=True)[0]
+                raw = self.collector.tokenizer.batch_decode(
+                    responses, skip_special_tokens=True
+                )[0]
                 mask = result.batch["attention_mask"][0, -responses.shape[1] :]
                 response_ids = plain(responses[0][mask.bool()])
                 mode = "continuation"
@@ -275,9 +294,12 @@ class ProbeRunner:
             success=s["won"],
             score=s["score"],
             generated_tokens=generated_tokens,
+            generated_input_tokens=generated_input_tokens,
             generated_requests=generated_requests,
             stop_reason=(
-                "success" if s["won"] else "terminal_failure" if s["done"] else "budget_exhausted"
+                "success"
+                if s["won"]
+                else "terminal_failure" if s["done"] else "budget_exhausted"
             ),
         )
         return t, total_calls
@@ -294,8 +316,13 @@ class UTrainingBridge:
             raise ValueError("U bridge requested while disabled")
         self.environment_version = settings.pop("environment_version")
         if not self.environment_version or self.environment_version == "REQUIRED":
-            raise ValueError("Set U environment_version to the verified data/code identity")
-        if config.algorithm.adv_estimator != "prob" or config.algorithm.filter_groups.enable:
+            raise ValueError(
+                "Set U environment_version to the verified data/code identity"
+            )
+        if (
+            config.algorithm.adv_estimator != "prob"
+            or config.algorithm.filter_groups.enable
+        ):
             raise ValueError("U requires Prob and forbids dynamic repeat-sampling")
         if int(config.actor_rollout_ref.rollout.n) != 1:
             raise ValueError("U requires one response per generation request")
@@ -316,7 +343,9 @@ class UTrainingBridge:
             "implementation": "prob-u-full150-page-checked-budget-success-learning",
             "base_commit": "a48589b1fb3fab23d45342064306a112dc10744e",
             "source_sha256": {
-                name: hashlib.sha256((Path(__file__).parent / name).read_bytes()).hexdigest()
+                name: hashlib.sha256(
+                    (Path(__file__).parent / name).read_bytes()
+                ).hexdigest()
                 for name in (
                     "prob_u.py",
                     "prob_u_runtime.py",
@@ -339,12 +368,19 @@ class UTrainingBridge:
 
     def process(self, batch):
         keys = list(
-            zip(batch.non_tensor_batch["traj_uid"], map(int, batch.non_tensor_batch["u_step"]))
+            zip(
+                batch.non_tensor_batch["traj_uid"],
+                map(int, batch.non_tensor_batch["u_step"]),
+            )
         )
         steps = {
-            (t["id"], s["step"]): s for t in self.collector.u_capture.traces for s in t["steps"]
+            (t["id"], s["step"]): s
+            for t in self.collector.u_capture.traces
+            for s in t["steps"]
         }
-        expected = [credit_key(steps[k], self.controller.cfg.credit_state_mode) for k in keys]
+        expected = [
+            credit_key(steps[k], self.controller.cfg.credit_state_mode) for k in keys
+        ]
         if list(batch.non_tensor_batch.get("u_credit_key", [])) != expected:
             raise ValueError("U graph and normalization credit keys disagree")
         self.before, self.after, metrics = self.controller.process(
@@ -356,7 +392,15 @@ class UTrainingBridge:
         self.last_metrics["environment/u_natural_physical_calls"] = (
             self.collector.u_capture.physical_calls
         )
-        self.last_metrics["u/natural_generated_tokens"] = self.collector.u_capture.generated_tokens
+        self.last_metrics["u/natural_generated_tokens"] = (
+            self.collector.u_capture.generated_tokens
+        )
+        self.last_metrics["u/natural_input_tokens"] = (
+            self.collector.u_capture.generated_input_tokens
+        )
+        self.last_metrics["environment/u_natural_effective_steps"] = sum(
+            len(t["steps"]) for t in self.collector.u_capture.traces
+        )
         self.last_metrics["u/natural_generated_requests"] = (
             self.collector.u_capture.generated_requests
         )
@@ -366,13 +410,16 @@ class UTrainingBridge:
             dtype=torch.float32,
         )
         after = torch.tensor(
-            [self.after[k]["a"] for k in keys], device=before.device, dtype=torch.float32
+            [self.after[k]["a"] for k in keys],
+            device=before.device,
+            dtype=torch.float32,
         )
         self.raw_delta = after - before
         batch.batch["step_rewards"] = after
         self.last_metrics["history/observer_active"] = 1
         self.last_metrics["environment/u_total_physical_calls"] = (
-            self.collector.u_capture.physical_calls + metrics["u/extra_physical_env_calls"]
+            self.collector.u_capture.physical_calls
+            + metrics["u/extra_physical_env_calls"]
         )
         prior = [
             json.loads(p.read_text())
@@ -380,9 +427,10 @@ class UTrainingBridge:
             if int(p.parent.name.split("_")[1]) < self.stage
             and (p.parent / "complete.json").exists()
         ]
-        self.last_metrics["environment/u_cumulative_physical_calls"] = self.last_metrics[
-            "environment/u_total_physical_calls"
-        ] + sum(m.get("environment/u_total_physical_calls", 0) for m in prior)
+        self.last_metrics["environment/u_cumulative_physical_calls"] = (
+            self.last_metrics["environment/u_total_physical_calls"]
+            + sum(m.get("environment/u_total_physical_calls", 0) for m in prior)
+        )
         return metrics
 
     def compose_observation(self, batch, compose):
@@ -406,9 +454,10 @@ class UTrainingBridge:
                 "prob/final_token_advantage_sign_changed_ratio": (
                     float(
                         (
-                            (batch.batch["advantages"].sign() != base.batch["advantages"].sign())[
-                                mask
-                            ]
+                            (
+                                batch.batch["advantages"].sign()
+                                != base.batch["advantages"].sign()
+                            )[mask]
                         )
                         .float()
                         .mean()
@@ -424,17 +473,15 @@ class UTrainingBridge:
                 ),
             }
         )
-        failed_tasks = {
-            t["task_id"]
-            for t in self.collector.u_capture.traces
-            if not any(
-                x["success"]
-                for x in self.collector.u_capture.traces
-                if x["task_id"] == t["task_id"]
-            )
-        }
+        from .prob_u import failed_trajectory_ids
+
+        failed_ids = failed_trajectory_ids(
+            self.collector.u_capture.traces,
+            limit=self.controller.cfg.reference_natural_count,
+        )
         failed_rows = torch.tensor(
-            [str(t) in failed_tasks for t in batch.non_tensor_batch["uid"]], device=mask.device
+            [str(t) in failed_ids for t in batch.non_tensor_batch["traj_uid"]],
+            device=mask.device,
         )
         self.last_metrics.update(
             {
@@ -443,7 +490,9 @@ class UTrainingBridge:
                 ),
                 "tasks/all_failed_natural_steps": int(failed_rows.sum()),
                 "tasks/all_failed_nonzero_final_advantage_steps": int(
-                    ((batch.batch["advantages"].abs() > 1e-8) & mask).any(-1)[failed_rows].sum()
+                    ((batch.batch["advantages"].abs() > 1e-8) & mask)
+                    .any(-1)[failed_rows]
+                    .sum()
                 ),
             }
         )
@@ -467,6 +516,20 @@ class UTrainingBridge:
     def attach_auxiliary(self, batch):
         from .full_runtime import attach_auxiliary
 
+        epochs = int(self.config.actor_rollout_ref.actor.ppo_epochs)
+        self.last_metrics.update(
+            {
+                "cost/ppo_rows_over_epochs": len(batch) * epochs,
+                "cost/ppo_input_output_tokens_over_epochs": int(
+                    batch.batch["attention_mask"].sum().item()
+                )
+                * epochs,
+                "cost/ppo_response_tokens_over_epochs": int(
+                    batch.batch["response_mask"].sum().item()
+                )
+                * epochs,
+            }
+        )
         attach_auxiliary(self, batch)
 
     def save_actor_input(self, batch):
@@ -488,7 +551,11 @@ class UTrainingBridge:
         folder = self.controller.pending
         compact_stage_evidence(folder)
         self.controller.finish(
-            {"actor_update_completed": True, "stage": self.stage, "metrics": plain(metrics)}
+            {
+                "actor_update_completed": True,
+                "stage": self.stage,
+                "metrics": plain(metrics),
+            }
         )
         self.collector.u_meta = None
 
@@ -516,10 +583,13 @@ class UTrainingBridge:
             "stale_policy_count",
         ]
         payload = {
-            "u/tasks": backend.Table(columns=columns, data=[[r[c] for c in columns] for r in rows])
+            "u/tasks": backend.Table(
+                columns=columns, data=[[r[c] for c in columns] for r in rows]
+            )
         }
         if shadow:
             payload["history/shadow_examples"] = backend.Table(
-                columns=shadow_cols, data=[[r[c] for c in shadow_cols] for r in shadow[:256]]
+                columns=shadow_cols,
+                data=[[r[c] for c in shadow_cols] for r in shadow[:256]],
             )
         backend.log(payload, step=stage, commit=False)
