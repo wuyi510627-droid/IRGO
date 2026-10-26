@@ -234,6 +234,18 @@ class WebshopMultiProcessEnv(gym.Env):
         if not is_train: assert group_n == 1
 
         self._rng = np.random.RandomState(seed)
+        # Explicit opt-in: archived runs retain their original seed/index rules.
+        self._task_schedule = None
+        self._workers = []
+        manifest = os.environ.get('IRGO_TASK_MANIFEST')
+        if manifest:
+            from recipe.GraphGPO.task_protocol import FixedTaskSchedule
+            self._task_schedule = FixedTaskSchedule(manifest, is_train, env_num, seed)
+            self._task_schedule.verify_sources(os.path.join(os.path.dirname(__file__), 'webshop'))
+        all_seeds = [
+            self._task_schedule.environment_seed if self._task_schedule else seed + i // group_n
+            for i in range(self.num_processes)
+        ]
 
         self._env_kwargs = env_kwargs if env_kwargs is not None else {'observation_mode': 'text', 'num_products': None}
 
@@ -263,7 +275,7 @@ class WebshopMultiProcessEnv(gym.Env):
         if per_actor == 1:
             env_worker = ray.remote(**resources_per_worker)(WebshopWorker)
             self._workers = [
-                env_worker.remote(seed + (i // self.group_n), self._env_kwargs)
+                env_worker.remote(all_seeds[i], self._env_kwargs)
                 for i in range(self.num_processes)
             ]
         else:
@@ -276,7 +288,6 @@ class WebshopMultiProcessEnv(gym.Env):
             # 每个 env 的 seed 与原始路径逐位一致：seed + (i // group_n)。
             # actor 内部再按 seed 分组建 SimServer，所以 per_actor 可以大于
             # group_n（一个 actor 装多个 group），语义不受影响。
-            all_seeds = [seed + (i // self.group_n) for i in range(self.num_processes)]
             self._workers = [
                 env_worker.remote(all_seeds[a * per_actor:(a + 1) * per_actor],
                                   self._env_kwargs, f'a{a}_')
@@ -301,12 +312,15 @@ class WebshopMultiProcessEnv(gym.Env):
         # else:
         #     self.goal_idxs = range(len(self.env.server.goals))
 
-        if not self.is_train:
+        if self._task_schedule:
+            self._task_schedule.verify_goals(goals)
+            self.goal_idxs = sorted(self._task_schedule.allowed_indices)
+        elif not self.is_train:
             self.goal_idxs = range(500)
         else:
             self.goal_idxs = range(500, len(goals))
             
-        print(self.goal_idxs)
+        print(f'[webshop] eligible goals: {len(self.goal_idxs)}; frozen protocol: {bool(self._task_schedule)}')
 
     # ------------------------------------------------------------------
     # Base API ----------------------------------------------------------
@@ -342,7 +356,10 @@ class WebshopMultiProcessEnv(gym.Env):
         return obs_list, reward_list, done_list, info_list
 
     def reset(self):
-        idx = self._rng.choice(self.goal_idxs, size=self.env_num, replace=False)
+        idx = (self._task_schedule.next_indices() if self._task_schedule else
+               self._rng.choice(self.goal_idxs, size=self.env_num, replace=False))
+        if self._task_schedule:
+            task_ids, trajectory_ids = self._task_schedule.identities(idx, self.group_n)
         idx = np.repeat(idx, self.group_n).tolist()
 
         # Send reset commands to all workers
@@ -363,7 +380,11 @@ class WebshopMultiProcessEnv(gym.Env):
         for slot, (obs, info) in enumerate(results):
             info = dict(info)
             info['u_goal_index'] = int(idx[slot])
-            info['u_environment_seed'] = self._seed + slot // self.group_n
+            info['u_environment_seed'] = (self._task_schedule.environment_seed if self._task_schedule
+                                           else self._seed + slot // self.group_n)
+            if self._task_schedule:
+                info['irgo_task_instance_id'] = task_ids[slot]
+                info['irgo_trajectory_id'] = trajectory_ids[slot]
             obs_list.append(obs)
             info_list.append(info)
 

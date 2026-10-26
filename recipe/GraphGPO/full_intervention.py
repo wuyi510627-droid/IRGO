@@ -4,13 +4,17 @@ from collections import Counter, defaultdict
 from .prob_u import digest, credit_key, estimate, gates
 
 
-def make_candidates(natural, before_gates, query_map, stage, seed):
+def make_candidates(
+    natural, before_gates, query_map, stage, seed, site_selection="heuristic"
+):
     """选点而非判定动作正确性：条件检查优先，其次证据稀缺程度。
 
     已有成功的组仅考虑信用代理尚不稳定的位置；全失败组不受此筛选。
     同一任务最多保留两个完整上下文、四个替代动作，排除该完整上下文
     已出现的动作。动作顺序由确定性哈希给出，不是按真实成功率排序。
     """
+    if site_selection not in ("heuristic", "random"):
+        raise ValueError("Unsupported site selection control")
     known = defaultdict(set)
     count = defaultdict(Counter)
     for t in natural:
@@ -21,7 +25,9 @@ def make_candidates(natural, before_gates, query_map, stage, seed):
     success = {t["task_id"]: False for t in natural}
     for t in natural:
         success[t["task_id"]] |= t["success"]
-    uncertain = {(g["task_id"], g["key"]) for g in before_gates if g["reason"] != "stable_proxy"}
+    uncertain = {
+        (g["task_id"], g["key"]) for g in before_gates if g["reason"] != "stable_proxy"
+    }
     sites = {}
     for t in natural:
         for s in t["steps"]:
@@ -30,14 +36,19 @@ def make_candidates(natural, before_gates, query_map, stage, seed):
             if success[t["task_id"]] and (t["task_id"], s["anchor"]) not in uncertain:
                 continue
             choices = {
-                "click[" + a.lower() + "]" for a in s["clickables_before"] if a.lower() != "search"
+                "click[" + a.lower() + "]"
+                for a in s["clickables_before"]
+                if a.lower() != "search"
             }
             choices.update(query_map.get(s["key"], []))
             choices -= known[s["key"]]
             if not choices:
                 continue
             pre, aft = s.get("checked_before", {}), s.get("checked_after", {})
-            if s["action"].startswith("search[") and aft.get("visible_static_feasible") == 0:
+            if (
+                s["action"].startswith("search[")
+                and aft.get("visible_static_feasible") == 0
+            ):
                 priority, reason = 4, "search_no_verified_feasible_visible_product"
             elif (
                 pre.get("asin") is None
@@ -59,7 +70,9 @@ def make_candidates(natural, before_gates, query_map, stage, seed):
                 priority=priority,
                 reason=reason,
                 scarcity=min(counts.values()) if counts else 0,
-                actions=sorted(choices, key=lambda a: digest([seed, stage, "action", s["key"], a])),
+                actions=sorted(
+                    choices, key=lambda a: digest([seed, stage, "action", s["key"], a])
+                ),
                 all_failed=not success[t["task_id"]],
             )
             key = (t["task_id"], s["key"])
@@ -74,7 +87,11 @@ def make_candidates(natural, before_gates, query_map, stage, seed):
     for row in sites.values():
         by_task[row["task"]].append(row)
     plan = {}
+    task_priority = {}
     for task, choices in by_task.items():
+        # Freeze task scheduling from the whole eligible pool. Randomizing the
+        # two selected sites must not also change which tasks receive budget.
+        task_priority[task] = max(x["priority"] for x in choices)
         choices.sort(
             key=lambda x: (
                 -x["priority"],
@@ -83,18 +100,25 @@ def make_candidates(natural, before_gates, query_map, stage, seed):
                 digest([seed, stage, x["step"]["key"]]),
             )
         )
-        # Two high-priority contexts; visit each before a second alternative.
+        if site_selection == "random":
+            choices.sort(
+                key=lambda x: digest([seed, stage, "random_site", x["step"]["key"]])
+            )
+        # Two contexts; visit each before a second alternative. The default
+        # retains the historical heuristic order; R only changes this order.
         choices = choices[:2]
         candidates = []
         for action_index in range(4):
             for site in choices:
                 if action_index < len(site["actions"]):
-                    candidates.append(dict(**site, action=site["actions"][action_index]))
+                    candidates.append(
+                        dict(**site, action=site["actions"][action_index])
+                    )
         plan[task] = candidates[:4]
     order = sorted(
         plan,
         key=lambda task: (
-            -max(x["priority"] for x in plan[task]),
+            -task_priority[task],
             not plan[task][0]["all_failed"],
             digest([seed, stage, "task", task]),
         ),
@@ -109,12 +133,32 @@ def execute_interventions(natural, runner, cfg, stage, pre, folder, write):
     成功即停止；已执行两条时可按选中节点的条件稳定代理提前停止。
     所有有效证据仍进入后续信用重算，不按第二次 gate 回退原优势。
     """
+    if min(cfg.max_probes, cfg.max_probes_per_task, cfg.max_extra_env_calls) == 0:
+        # Pure Prob controls still collect audit traces. A zero intervention
+        # budget must also suppress proposal generation, not just branch calls.
+        write(folder / "selection_before_outcomes.json", [])
+        write(folder / "intervention_stops.json", {})
+        return (
+            [],
+            [],
+            0,
+            Counter(),
+            {
+                "u/query_requests": 0,
+                "u/query_generated_tokens": 0,
+                "u/query_input_tokens": 0,
+            },
+        )
     query_map, proposal_metrics = runner.propose_queries(natural, pre, cfg, stage)
-    plan, task_order = make_candidates(natural, pre, query_map, stage, cfg.seed)
+    plan, task_order = make_candidates(
+        natural, pre, query_map, stage, cfg.seed, cfg.site_selection
+    )
     frozen_plan = [
         {k: v for k, v in row.items() if k not in ("parent", "step", "actions")}
         | dict(
-            parent_id=row["parent"]["id"], context_key=row["step"]["key"], step=row["step"]["step"]
+            parent_id=row["parent"]["id"],
+            context_key=row["step"]["key"],
+            step=row["step"]["step"],
         )
         for task in task_order
         for row in plan[task]
@@ -133,7 +177,10 @@ def execute_interventions(natural, runner, cfg, stage, pre, folder, write):
             row = plan[task][pass_index]
             ref, s = row["parent"], row["step"]
             reserve = ref["max_steps"]
-            if len(probes) >= cfg.max_probes or calls + reserve > cfg.max_extra_env_calls:
+            if (
+                len(probes) >= cfg.max_probes
+                or calls + reserve > cfg.max_extra_env_calls
+            ):
                 events.append(
                     dict(
                         task_id=task,
